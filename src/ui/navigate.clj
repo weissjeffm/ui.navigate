@@ -4,7 +4,7 @@
             [clojure.set])
   (:import [java.util NoSuchElementException]))
 
-(defmacro nav-tree "takes a nested vector structure and returns nested maps"
+(defn as-tree "takes a nested vector structure and returns nested maps"
   [[page-id args form & links]]
   (merge `{:page ~page-id
            :fn (fn ~args ~form)
@@ -13,6 +13,10 @@
            {:links (vec (for [link links]
                           `(nav-tree ~link)))}
            {})))
+
+(defmacro nav-tree "Formats literal nested vector as a page tree."
+  [& args]
+  `(apply as-tree ~args))
 
 (defn page-zip [tree] (zip/zipper (constantly true)
                                   #(:links %)
@@ -65,15 +69,23 @@
        (navigate page (page-zip (deref nav-tree-ref)) args))
     ([page] (navigate page (page-zip (deref nav-tree-ref)) {}))))
 
+(defn add-subnav-multiple
+  "Add multiple branches to the same parent."
+  [tree parent-page branches]
+  (let [parent-node (find-node (page-zip tree) (matches-page parent-page))]
+    (assert parent-node (format "Graft point %s not found in tree." parent-page))
+    (loop [z parent-node branches branches]
+      (if-let [branch (first branches)]
+        (if-let [existing-child-loc (->> z
+                                       zf/children
+                                       (filter (matches-page (:page branch)))
+                                       first)]
+          (recur (-> existing-child-loc (zip/replace branch) zip/up) (rest branches))
+          (recur (zip/append-child z branch) (rest branches)))
+        (zip/root z)))))
+
 (defn add-subnav
   "In nav-tree tree, add subnavigation branch as a child of parent
   page. If branch is already present, replaces that branch."
   [tree parent-page branch]
-  (let [parent-node (find-node (page-zip tree) (matches-page parent-page))]
-    (assert parent-node (format "Graft point %s not found in tree." parent-page))
-    (if-let [existing-child-loc (->> parent-node
-                                   zf/children
-                                   (filter (matches-page (:page branch)))
-                                   first)]
-      (-> existing-child-loc (zip/replace branch) zip/root)
-      (-> parent-node (zip/append-child branch) zip/root))))
+  (add-subnav-multiple tree parent-page (list branch)))
