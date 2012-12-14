@@ -15,8 +15,8 @@
            {})))
 
 (defmacro nav-tree "Formats literal nested vector as a page tree."
-  [& args]
-  `(apply as-tree ~args))
+  [args]
+  (as-tree args))
 
 (defn page-zip [tree] (zip/zipper (constantly true)
                                   #(:links %)
