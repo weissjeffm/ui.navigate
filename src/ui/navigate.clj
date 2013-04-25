@@ -5,10 +5,9 @@
   (:import [java.util NoSuchElementException]))
 
 (defn as-tree "takes a nested vector structure and returns nested maps"
-  [[page-id args form & links]]
+  [[page-id step-fn & links]]
   (merge `{:page ~page-id
-           :fn (fn ~args ~form)
-           :req-args ~(vec (map keyword args))}
+           :fn ~step-fn}
          (if links
            {:links (vec (for [link links]
                           `(nav-tree ~link)))}
@@ -37,25 +36,21 @@
             (some  #(when (pred %) %)))))
 
 (defn page-path
-  "Returns a list, the path from the root of zipper tree z to page."
-  [page z]
-  (let [first-match (or (find-node z (matches-page page))
-                        (throw (NoSuchElementException.
-                                (str "Page " page " was not found in navigation tree."))))]
-    (conj (zip/path first-match) (zip/node first-match))))
+  "Returns a list, the path from the start-page of zipper tree, to
+   end-page. start-page defaults to the root of the tree."
+  ([start-page end-page z]
+     (let [first-match (or (find-node z (matches-page end-page))
+                           (throw (NoSuchElementException.
+                                   (str "Page " end-page " was not found in navigation tree."))))]
+       (drop-while #(not= (:page %) start-page)
+                   (conj (zip/path first-match) (zip/node first-match)))))
+  ([end-page z]
+     (page-path (-> z zip/root :page) end-page z)))
 
 (defn navigate 
-  ([page z args]
-     (let [path (page-path page z)
-           all-req-args (set (mapcat :req-args path))
-           missing-args (clojure.set/difference all-req-args (set (keys args)))]
-       (if-not (zero? (count missing-args))
-         (throw (IllegalArgumentException. (str "Missing required keys to navigate to " page " - " missing-args)))
-         (doseq [step path]
-           (apply (:fn step)
-                  (for [req-arg (:req-args step)]
-                    (req-arg args)))))))
-  ([page z] (navigate page z {})))
+  [start-page end-page z args]
+  (doseq [step  end-page z]
+    (apply (:fn step) args)))
 
 (defn nav-fn
   "Closes over a page zip structure and returns a navigation function.
@@ -67,7 +62,7 @@
   (fn 
     ([page args]
        (navigate page (page-zip (deref nav-tree-ref)) args))
-    ([page] (navigate page (page-zip (deref nav-tree-ref)) {}))))
+    ([page] (navigate page (page-zip (deref nav-tree-ref)) (list)))))
 
 (defn add-subnav-multiple
   "Add multiple branches to the same parent."
@@ -77,9 +72,9 @@
     (loop [z parent-node branches branches]
       (if-let [branch (first branches)]
         (if-let [existing-child-loc (->> z
-                                       zf/children
-                                       (filter (matches-page (:page branch)))
-                                       first)]
+                                         zf/children  ;; because we wants the locs, not the nodes
+                                         (filter (matches-page (:page branch)))
+                                         first)]
           (recur (-> existing-child-loc (zip/replace branch) zip/up) (rest branches))
           (recur (zip/append-child z branch) (rest branches)))
         (zip/root z)))))
