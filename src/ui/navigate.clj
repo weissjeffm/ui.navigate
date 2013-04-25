@@ -71,7 +71,7 @@
 
 (defn add-subnav-multiple
   "Add multiple branches to the same parent."
-  [tree parent-page branches]
+  [tree [parent-page branches]]
   (let [parent-node (find-node (page-zip tree) (matches-page parent-page))]
     (assert parent-node (format "Graft point %s not found in tree." parent-page))
     (loop [z parent-node branches branches]
@@ -87,5 +87,5 @@
 (defn add-subnav
   "In nav-tree tree, add subnavigation branch as a child of parent
   page. If branch is already present, replaces that branch."
-  [tree parent-page branch]
+  [tree [parent-page branch]]
   (add-subnav-multiple tree parent-page (list branch)))
