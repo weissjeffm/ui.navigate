@@ -42,14 +42,14 @@
      (let [first-match (or (find-node z (matches-page end-page))
                            (throw (NoSuchElementException.
                                    (str "Page " end-page " was not found in navigation tree."))))]
-       (drop-while #(not= (:page %) start-page)
+       (drop-while #(not= (:page %) (or start-page (-> z zip/root :page)))
                    (conj (zip/path first-match) (zip/node first-match)))))
   ([end-page z]
-     (page-path (-> z zip/root :page) end-page z)))
+     (page-path nil end-page z)))
 
 (defn navigate 
   [start-page end-page z args]
-  (doseq [step  end-page z]
+  (doseq [step (page-path start-page end-page z)]
     (apply (:fn step) args)))
 
 (defn nav-fn
@@ -72,7 +72,7 @@
     (loop [z parent-node branches branches]
       (if-let [branch (first branches)]
         (if-let [existing-child-loc (->> z
-                                         zf/children  ;; because we wants the locs, not the nodes
+                                         zf/children  ;; because we wants the locs, not the no
                                          (filter (matches-page (:page branch)))
                                          first)]
           (recur (-> existing-child-loc (zip/replace branch) zip/up) (rest branches))
