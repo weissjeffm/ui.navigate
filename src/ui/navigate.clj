@@ -4,18 +4,13 @@
             [clojure.set])
   (:import [java.util NoSuchElementException]))
 
-(defn as-tree "takes a nested vector structure and returns nested maps"
+(defn nav-tree "Formats literal nested vector as a page tree."
   [[page-id step-fn & links]]
-  (merge `{:page ~page-id
-           :fn ~step-fn}
+  (merge {:page page-id
+          :fn step-fn}
          (if links
-           {:links (vec (for [link links]
-                          `(nav-tree ~link)))}
+           {:links (map nav-tree links)}
            {})))
-
-(defmacro nav-tree "Formats literal nested vector as a page tree."
-  [args]
-  (as-tree args))
 
 (defn page-zip [tree] (zip/zipper (constantly true)
                                   #(:links %)
@@ -72,7 +67,7 @@
     (loop [z parent-node branches branches]
       (if-let [branch (first branches)]
         (if-let [existing-child-loc (->> z
-                                         zf/children  ;; because we wants the locs, not the no
+                                         zf/children  ;; because we want the locs, not the nodes
                                          (filter (matches-page (:page branch)))
                                          first)]
           (recur (-> existing-child-loc (zip/replace branch) zip/up) (rest branches))
